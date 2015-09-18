@@ -1316,6 +1316,10 @@ impl<'a> FlowConstructor<'a> {
             return false
         }
 
+        if node.in_fragmentation_container() {
+            return false
+        }
+
 
         let mut style = node.style().clone();
         let mut layout_data_ref = node.mutate_layout_data();

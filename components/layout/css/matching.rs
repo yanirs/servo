@@ -721,6 +721,10 @@ impl<'ln> MatchMethods for LayoutNode<'ln> {
                                 false);
                         }
                         layout_data.data.restyle_damage = damage;
+                        self.set_in_fragmentation_container(
+                            parent.as_ref().map_or(false, |p| p.in_fragmentation_container()) ||
+                            layout_data.shared_data.style.as_ref().unwrap().is_multicol()
+                        );
                     }
                 }
             }
