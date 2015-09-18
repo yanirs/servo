@@ -58,6 +58,7 @@ bitflags! {
     }
 }
 
+#[repr(C)]  // Make transmute in layout_task.rs not rely on undefined repr(rust) struct layout
 pub struct LayoutDataWrapper {
     pub shared_data: SharedLayoutData,
     pub data: Box<PrivateLayoutData>,
