@@ -58,7 +58,6 @@ use selectors::states::*;
 use smallvec::VecLike;
 use std::borrow::ToOwned;
 use std::cell::{Ref, RefMut};
-use std::iter::FromIterator;
 use std::marker::PhantomData;
 use std::mem;
 use std::sync::Arc;
@@ -69,7 +68,7 @@ use style::legacy::UnsignedIntegerAttribute;
 use style::node::TElementAttributes;
 use style::properties::ComputedValues;
 use style::properties::{PropertyDeclaration, PropertyDeclarationBlock};
-use style::restyle_hints::{RESTYLE_DESCENDANTS, RESTYLE_LATER_SIBLINGS, RESTYLE_SELF, RestyleHint};
+use style::restyle_hints::{ElementSnapshot, RESTYLE_DESCENDANTS, RESTYLE_LATER_SIBLINGS, RESTYLE_SELF, RestyleHint};
 use url::Url;
 use util::str::{is_whitespace, search_index};
 
@@ -375,15 +374,13 @@ impl<'le> LayoutDocument<'le> {
         self.as_node().children().find(LayoutNode::is_element)
     }
 
-    pub fn drain_modified_elements(&self) -> Vec<(LayoutElement, ElementState)> {
-        unsafe {
-            let elements = self.document.drain_modified_elements();
-            Vec::from_iter(elements.iter().map(|&(el, state)|
-                (LayoutElement {
-                    element: el,
-                    chain: PhantomData,
-                }, state)))
-        }
+    pub fn drain_modified_elements(&self) -> Vec<(LayoutElement, ElementSnapshot)> {
+        let elements =  unsafe { self.document.drain_modified_elements() };
+        elements.into_iter().map(|(el, snapshot)|
+            (LayoutElement {
+                element: el,
+                chain: PhantomData,
+            }, snapshot)).collect()
     }
 }
 
@@ -413,7 +410,7 @@ impl<'le> LayoutElement<'le> {
     }
 
     /// Properly marks nodes as dirty in response to restyle hints.
-    pub fn note_restyle_hint(&self, hint: RestyleHint) {
+    pub fn note_restyle_hint(&self, mut hint: RestyleHint) {
         // Bail early if there's no restyling to do.
         if hint.is_empty() {
             return;
@@ -446,6 +443,11 @@ impl<'le> LayoutElement<'le> {
         // Process hints.
         if hint.contains(RESTYLE_SELF) {
             dirty_node(&node);
+
+            // FIXME(#8438): We currently need to RESTYLE_DESCENDANTS in the RESTYLE_SELF
+            // case in order to make sure "inherit" style structs propagate properly. See
+            // the explanation in the github issue.
+            hint.insert(RESTYLE_DESCENDANTS);
         }
         if hint.contains(RESTYLE_DESCENDANTS) {
             unsafe { node.set_dirty_descendants(true); }
